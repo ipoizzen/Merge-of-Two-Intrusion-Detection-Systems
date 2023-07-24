@@ -1,126 +1,61 @@
 import pandas as pd
-from keras.utils import get_file
-from sklearn.model_selection import train_test_split
-from keras.models import Sequential
-from keras.layers import Dense, Activation, Dropout
-from keras.callbacks import EarlyStopping
-from sklearn.preprocessing import LabelEncoder, StandardScaler
-from sklearn.compose import ColumnTransformer
-from sklearn.preprocessing import OneHotEncoder
-from sklearn.metrics import classification_report
 import numpy as np
+from keras.models import Sequential
+from keras.layers import Dense, Dropout
+from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score
+from sklearn.preprocessing import Normalizer
+from keras.callbacks import ModelCheckpoint, CSVLogger
 import matplotlib.pyplot as plt
 
-# Download and read the dataset
-try:
-    path = get_file('kddcup.data_10_percent.gz', origin='https://figshare.com/ndownloader/files/5976042')
-except:
-    print('Error downloading the dataset.')
-    raise
+np.random.seed(1337)  # for reproducibility
 
-df = pd.read_csv(path, header=None)
+# Load data
+traindata = pd.read_csv('https://raw.githubusercontent.com/rahulvigneswaran/Intrusion-Detection-Systems/master/dnn/kdd/binary/Training.csv', header=None)
+testdata = pd.read_csv('https://raw.githubusercontent.com/rahulvigneswaran/Intrusion-Detection-Systems/master/dnn/kdd/binary/Testing.csv', header=None)
 
-df.columns = [
-    'duration',
-    'protocol_type',
-    'service',
-    'flag',
-    'src_bytes',
-    'dst_bytes',
-    'land',
-    'wrong_fragment',
-    'urgent',
-    'hot',
-    'num_failed_logins',
-    'logged_in',
-    'num_compromised',
-    'root_shell',
-    'su_attempted',
-    'num_root',
-    'num_file_creations',
-    'num_shells',
-    'num_access_files',
-    'num_outbound_cmds',
-    'is_host_login',
-    'is_guest_login',
-    'count',
-    'srv_count',
-    'serror_rate',
-    'srv_serror_rate',
-    'rerror_rate',
-    'srv_rerror_rate',
-    'same_srv_rate',
-    'diff_srv_rate',
-    'srv_diff_host_rate',
-    'dst_host_count',
-    'dst_host_srv_count',
-    'dst_host_same_srv_rate',
-    'dst_host_diff_srv_rate',
-    'dst_host_same_src_port_rate',
-    'dst_host_srv_diff_host_rate',
-    'dst_host_serror_rate',
-    'dst_host_srv_serror_rate',
-    'dst_host_rerror_rate',
-    'dst_host_srv_rerror_rate',
-    'outcome'
-]
+X = traindata.iloc[:, 1:42]
+Y = traindata.iloc[:, 0]
+C = testdata.iloc[:, 0]
+T = testdata.iloc[:, 1:42]
 
-# Drop duplicate rows and missing values
-df.drop_duplicates(keep='first', inplace=True)
-df.dropna(inplace=True)
+scaler = Normalizer().fit(X)
+trainX = scaler.transform(X)
 
-# Encode labels
-encoder = LabelEncoder()
-df['outcome'] = encoder.fit_transform(df['outcome'])
+scaler = Normalizer().fit(T)
+testT = scaler.transform(T)
 
-# Separate features and labels
-x = df.drop('outcome', axis=1)
-y = df['outcome']
+y_train = np.array(Y)
+y_test = np.array(C)
 
-# Perform one-hot encoding for categorical variables
-cat_features = ['protocol_type', 'service', 'flag']
-preprocessor = ColumnTransformer(transformers=[('encoder', OneHotEncoder(), cat_features)], remainder='passthrough')
-x = preprocessor.fit_transform(x)
+X_train = np.array(trainX)
+X_test = np.array(testT)
 
-# Select the relevant columns
-x = x[:, :41]  # Select the first 41 columns
+batch_size = 64
 
-# Split the dataset into train and test sets
-x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.4, random_state=42)
-
-# Scale the features
-scaler = StandardScaler()
-x_train = scaler.fit_transform(x_train)
-x_test = scaler.transform(x_test)
-
-# Create the model
+# Define the network
 model = Sequential()
-model.add(Dense(64, input_dim=41, activation='relu'))
-model.add(Dropout(0.1))
-model.add(Dense(32, activation='relu'))
+model.add(Dense(1, input_dim=41, activation='relu'))
 model.add(Dropout(0.01))
-model.add(Dense(len(encoder.classes_), activation='softmax'))
+model.add(Dense(64, activation='relu'))
+model.add(Dropout(0.01))
+model.add(Dense(1, activation='sigmoid'))
 
-model.compile(loss='sparse_categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
+model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
 
-# Train the model
-early_stopping = EarlyStopping(monitor='val_loss', min_delta=1e-3, patience=5, verbose=1, mode='auto')
-history = model.fit(x_train, y_train, validation_split=0.2, epochs=5, batch_size=41, callbacks=[early_stopping])
+# Add CSVLogger callback to save accuracy values during training
+csv_logger = CSVLogger('kddresults/dnn3layer/training_set_dnnanalysis.csv', separator=',', append=False)
 
-# Evaluate the model on the test set
-y_pred = np.argmax(model.predict(x_test), axis=-1)
+# Train the model and log accuracy during training
+history = model.fit(X_train, y_train, batch_size=batch_size, callbacks=[csv_logger])
 
-# Print the classification report
-classification_rep = classification_report(y_test, y_pred, zero_division=1)
-print(classification_rep)
+# Load the logged accuracy values from the CSV file
+training_results = pd.read_csv('kddresults/dnn3layer/training_set_dnnanalysis.csv')
 
-model.save("kddresults/testing/test_model.hdf5")
-
-# Plot the training history
-plt.plot(history.history['accuracy'], label='Train Accuracy')
-plt.plot(history.history['val_accuracy'], label='Validation Accuracy')
-plt.xlabel('Epochs')
+# Plot the accuracy graph
+plt.figure(figsize=(10, 6))
+plt.plot(training_results['accuracy'])
+plt.title('Model Accuracy during Training')
+plt.xlabel('Epoch')
 plt.ylabel('Accuracy')
-plt.legend()
+plt.tight_layout()
 plt.show()
-plt.close()
