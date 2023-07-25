@@ -1,5 +1,7 @@
 # Merging Two Intrusion Detection Systems
 
+For the directory you will need to drag kddresults folder  into the python project folder so you will not have to setup your own files.
+
 
 ## Description
 
