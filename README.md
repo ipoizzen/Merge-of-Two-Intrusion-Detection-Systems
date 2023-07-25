@@ -43,7 +43,7 @@ test_model.hdf5: Download Link
 3. Download the Testing Dataset
 Download the testing dataset for evaluation. The dataset should be in CSV format and contain the features and labels. Place the CSV file in the root directory of your local repository.
 
-You can get the testing dataset from the following link:
+You can get the testing dataset from the following link: https://figshare.com/ndownloader/files/5976042 and (https://raw.githubusercontent.com/rahulvigneswaran/Intrusion-Detection-Systems/master/dnn/kdd/binary/Testing.csv)
 
 Download Testing Dataset
 
